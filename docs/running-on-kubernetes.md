@@ -251,7 +251,8 @@ In order to run in client mode, use `kubectl attach` to attach to an existing dr
     kubectl run -it --image=<driver image> --restart=Never -- /bin/bash
 
 This will open up a shell into the specified driver pod from which you can run client mode applications. In order to appropriately configure
-these in-cluster applications, be sure to set the following configuration value, which essentially tells the cluster manager to refer back to the current driver pod as the driver for any applications you submit:
+these in-cluster applications, be sure to set the following configuration value for all applications, as in the following `spark-submit` example, 
+which essentially tells the cluster manager to refer back to the current driver pod as the driver for any applications you submit:
 
     spark.kubernetes.driver.pod.name=$HOSTNAME
 
