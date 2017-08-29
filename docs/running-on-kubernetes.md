@@ -256,23 +256,22 @@ the command may then look like the following:
 
 ### Running in-cluster client mode applications
 
-While Spark on Kubernetes does not officially support client mode applications, such as the PySpark shell, there is a workaround that
-allows for execution of these apps from within an existing Kubernetes cluster. This _in-cluster_ client mode bypasses some of the networking and
-dependency issues inherent to running a client from outside of a cluster while allowing much of the same functionality in terms of interactive use cases.
+While Spark on Kubernetes does not support client mode applications, such as the PySpark shell, when launched from outside Kubernetes, Spark on Kubernetes does support client mode applications launched from within the cluster. This _in-cluster_ client mode bypasses some of the networking and dependency issues inherent to running a client from outside of a cluster while allowing much of the same functionality in terms of interactive use cases, such as the PySpark shell and Jupyter notebooks.
 
 In order to run in client mode, use `kubectl attach` to attach to an existing driver pod on the cluster, or the following to run a new driver:
 
     kubectl run -it --image=<driver image> --restart=Never -- /bin/bash
 
 This will open up a shell into the specified driver pod from which you can run client mode applications. In order to appropriately configure
-these in-cluster applications, be sure to set the following configuration value for all applications, as in the following `spark-submit` example, 
-which essentially tells the cluster manager to refer back to the current driver pod as the driver for any applications you submit:
+these in-cluster applications, be sure to set the following configuration value for all applications, as in the following `spark-submit` example,
+which tells the cluster manager to refer back to the current driver pod as the driver for any applications you submit:
 
     spark.kubernetes.driver.pod.name=$HOSTNAME
 
 With that set, you should be able to run the following example from within the pod:
 
     bin/spark-submit \
+      --deploy-mode client \
       --class org.apache.spark.examples.SparkPi \
       --master k8s://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT \
       --kubernetes-namespace default \
