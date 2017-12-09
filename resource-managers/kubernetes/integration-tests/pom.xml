@@ -26,6 +26,7 @@
 
   <artifactId>spark-kubernetes-integration-tests_2.11</artifactId>
   <properties>
+    <root.src.folder>${project.basedir}/../../..</root.src.folder>
     <sbt.project.name>kubernetes-integration-tests</sbt.project.name>
   </properties>
   <packaging>jar</packaging>
@@ -229,6 +230,51 @@
             </configuration>
           </execution>
           <execution>
+            <id>copy-integration-bin</id>
+            <phase>pre-integration-test</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/docker/bin</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>${root.src.folder}/bin</directory>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+          <execution>
+            <id>copy-integration-sbin</id>
+            <phase>pre-integration-test</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/docker/sbin</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>${root.src.folder}/sbin</directory>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+          <execution>
+            <id>copy-integration-conf</id>
+            <phase>pre-integration-test</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/docker/conf</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>${root.src.folder}/conf</directory>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+          <execution>
               <id>copy-integration-python</id>
               <phase>pre-integration-test</phase>
               <goals>
@@ -238,10 +284,10 @@
                   <outputDirectory>${project.build.directory}/docker/python</outputDirectory>
                   <resources>
                       <resource>
-                          <directory>${project.parent.basedir}/python</directory>
+                          <directory>${root.src.folder}/python</directory>
                           <excludes>
-                            <exclude>${project.parent.basedir}/python/.egg</exclude>
-                            <exclude>${project.parent.basedir}/python/dist</exclude>
+                            <exclude>${root.src.folder}/python/.egg</exclude>
+                            <exclude>${root.src.folder}/python/dist</exclude>
                           </excludes>
                       </resource>
                   </resources>
@@ -257,7 +303,7 @@
               <outputDirectory>${project.build.directory}/docker/R</outputDirectory>
               <resources>
                 <resource>
-                  <directory>${project.parent.basedir}/R</directory>
+                  <directory>${root.src.folder}/R</directory>
                 </resource>
               </resources>
             </configuration>
@@ -272,7 +318,7 @@
               <outputDirectory>${project.build.directory}/docker/data</outputDirectory>
               <resources>
                 <resource>
-                  <directory>${project.parent.basedir}/data</directory>
+                  <directory>${root.src.folder}/data</directory>
                   <filtering>true</filtering>
                 </resource>
               </resources>
@@ -288,7 +334,7 @@
               <outputDirectory>${project.build.directory}/docker/licenses</outputDirectory>
               <resources>
                 <resource>
-                  <directory>${project.parent.basedir}/licenses</directory>
+                  <directory>${root.src.folder}/licenses</directory>
                   <filtering>true</filtering>
                 </resource>
               </resources>
@@ -304,7 +350,7 @@
               <outputDirectory>${project.build.directory}/docker/examples/jars</outputDirectory>
               <resources>
                 <resource>
-                  <directory>${project.parent.basedir}/examples/target/scala-2.11/jars</directory>
+                  <directory>${root.src.folder}/examples/target/scala-2.11/jars</directory>
                   <filtering>true</filtering>
                 </resource>
               </resources>
@@ -320,7 +366,7 @@
               <outputDirectory>${project.build.directory}/docker/examples/src/main</outputDirectory>
               <resources>
                 <resource>
-                  <directory>${project.parent.basedir}/examples/src/main</directory>
+                  <directory>${root.src.folder}/examples/src/main</directory>
                   <filtering>true</filtering>
                 </resource>
               </resources>
