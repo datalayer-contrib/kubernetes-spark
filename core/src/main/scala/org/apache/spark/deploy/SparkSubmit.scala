@@ -344,8 +344,8 @@ object SparkSubmit extends CommandLineUtils {
 
     // The following modes are not supported or applicable
     (clusterManager, deployMode) match {
-      case (KUBERNETES, CLIENT) =>
-        printErrorAndExit("Client mode is currently not supported for Kubernetes.")
+      case (KUBERNETES, CLUSTER) if args.isR =>
+        printErrorAndExit("Kubernetes does not currently support R applications.")
       case (STANDALONE, CLUSTER) if args.isPython =>
         printErrorAndExit("Cluster deploy mode is currently not supported for python " +
           "applications on standalone clusters.")
@@ -855,6 +855,14 @@ object SparkSubmit extends CommandLineUtils {
 
   private[deploy] def isInternal(res: String): Boolean = {
     res == SparkLauncher.NO_RESOURCE
+  }
+
+  /**
+   * Return whether the submission environment is within a Kubernetes cluster
+   */
+  private[deploy] def inK8sCluster(): Boolean = {
+    !sys.env.get("KUBERNETES_SERVICE_HOST").isEmpty &&
+      !sys.env.get("KUBERNETES_SERVICE_PORT").isEmpty
   }
 
   /**
