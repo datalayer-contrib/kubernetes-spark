@@ -113,7 +113,7 @@ private[spark] class SparkDockerImageBuilder
   }
 
   private def buildImage(name: String, dockerFile: String): Unit = {
-    log.info(s"Building docker image $name from Dockerfile $dockerFile")
+    println(s"Building docker image $name from Dockerfile $dockerFile")
     dockerClient.build(
       DOCKER_BUILD_PATH,
       name,
