@@ -22,7 +22,7 @@ import java.nio.file.Paths
 
 import scala.collection.JavaConverters._
 
-import com.spotify.docker.client.{DefaultDockerClient, DockerCertificates, LoggingBuildHandler}
+import com.spotify.docker.client.{DefaultDockerClient, DockerCertificates}
 import org.apache.http.client.utils.URIBuilder
 import org.scalatest.concurrent.{Eventually, PatienceConfiguration}
 import org.scalatest.time.{Minutes, Seconds, Span}
