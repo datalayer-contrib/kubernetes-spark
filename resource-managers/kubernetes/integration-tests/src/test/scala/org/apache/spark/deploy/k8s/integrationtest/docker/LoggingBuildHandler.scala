@@ -25,7 +25,7 @@ class LoggingBuildHandler() extends ProgressHandler {
   def progress(message: ProgressMessage) {
     if (message.error != null) throw new DockerException(message.toString)
     else if (message.status == null) {
-      println("build: {}", message)
+      println("build: {}", message.stream())
     }
   }
 }
