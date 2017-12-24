@@ -14,18 +14,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.spark.deploy.k8s.integrationtest.docker
+package org.apache.spark.deploy.k8s.integrationtest
 
-import com.spotify.docker.client.ProgressHandler
-import com.spotify.docker.client.exceptions.DockerException
-import com.spotify.docker.client.messages.ProgressMessage
+import org.apache.log4j.{Logger, LogManager, Priority}
 
-class LoggingBuildHandler() extends ProgressHandler {
-  @throws[DockerException]
-  def progress(message: ProgressMessage) {
-    if (message.error != null) throw new DockerException(message.toString)
-    else if (message.status == null) {
-      println(s"Docker build: ${message.stream()}")
-    }
-  }
+trait Logging {
+
+  private val log: Logger = LogManager.getLogger(this.getClass)
+
+  protected def logDebug(msg: => String) = if (log.isDebugEnabled) log.debug(msg)
+
+  protected def logInfo(msg: => String) = if (log.isInfoEnabled) log.info(msg)
+
+  protected def logWarning(msg: => String) = if (log.isEnabledFor(Priority.WARN)) log.warn(msg)
+
+  protected def logWarning(msg: => String, throwable: Throwable) =
+    if (log.isEnabledFor(Priority.WARN)) log.warn(msg, throwable)
+
+  protected def logError(msg: => String) = if (log.isEnabledFor(Priority.ERROR)) log.error(msg)
 }
