@@ -143,7 +143,7 @@ private[spark] class BaseDriverConfigurationStep(
       .set("spark.app.id", kubernetesAppId)
       .set(KUBERNETES_EXECUTOR_POD_NAME_PREFIX, kubernetesResourceNamePrefix)
     driverSpec.copy(
-      driverPod = baseDriverPod,
+//      driverPod = baseDriverPod,
       driverSparkConf = resolvedSparkConf,
       driverContainer = driverContainer)
   }

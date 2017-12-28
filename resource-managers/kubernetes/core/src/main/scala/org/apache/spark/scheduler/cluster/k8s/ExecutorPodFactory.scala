@@ -204,6 +204,8 @@ private[spark] class ExecutorPodFactoryImpl(
         .withName(name)
         .withLabels(resolvedExecutorLabels.asJava)
         .withAnnotations(executorAnnotations.asJava)
+      // TODO(ECH)
+/*
         .withOwnerReferences()
           .addNewOwnerReference()
             .withController(true)
@@ -212,6 +214,7 @@ private[spark] class ExecutorPodFactoryImpl(
             .withName(driverPod.getMetadata.getName)
             .withUid(driverPod.getMetadata.getUid)
             .endOwnerReference()
+*/
         .endMetadata()
       .withNewSpec()
         .withHostname(hostname)

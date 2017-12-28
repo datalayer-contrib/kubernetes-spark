@@ -18,9 +18,8 @@ package org.apache.spark.scheduler.cluster.k8s
 
 import java.io.File
 
-import io.fabric8.kubernetes.client.Config
-
-import org.apache.spark.SparkContext
+import io.fabric8.kubernetes.client.{Config, KubernetesClient}
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.deploy.k8s.{ConfigurationUtils, HadoopConfBootstrapImpl, HadoopConfSparkUserBootstrapImpl, HadoopUGIUtilImpl, InitContainerResourceStagingServerSecretPluginImpl, KerberosTokenConfBootstrapImpl, SparkKubernetesClientFactory, SparkPodInitContainerBootstrapImpl}
 import org.apache.spark.deploy.k8s.config._
 import org.apache.spark.deploy.k8s.constants._
@@ -31,7 +30,39 @@ import org.apache.spark.network.shuffle.kubernetes.KubernetesExternalShuffleClie
 import org.apache.spark.scheduler.{ExternalClusterManager, SchedulerBackend, TaskScheduler, TaskSchedulerImpl}
 import org.apache.spark.util.{ThreadUtils, Utils}
 
-private[spark] class KubernetesClusterManager extends ExternalClusterManager with Logging {
+trait ManagerSpecificHandlers {
+  def createKubernetesClient(sparkConf: SparkConf): KubernetesClient
+}
+
+private[spark] class KubernetesClusterManager extends ExternalClusterManager
+  with ManagerSpecificHandlers with Logging {
+
+  class ClusterModeHandlers extends ManagerSpecificHandlers {
+    override def createKubernetesClient(sparkConf: SparkConf): KubernetesClient =
+      SparkKubernetesClientFactory.createKubernetesClient(
+        KUBERNETES_MASTER_INTERNAL_URL,
+        Some(sparkConf.get(KUBERNETES_NAMESPACE)),
+        APISERVER_AUTH_DRIVER_MOUNTED_CONF_PREFIX,
+        sparkConf,
+        Some(new File(Config.KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH)),
+        Some(new File(Config.KUBERNETES_SERVICE_ACCOUNT_CA_CRT_PATH)))
+  }
+
+  class ClientModeHandlers extends ManagerSpecificHandlers {
+    override def createKubernetesClient(sparkConf: SparkConf): KubernetesClient =
+      SparkKubernetesClientFactory.createKubernetesClient2(
+        sparkConf.get("spark.master").replace("k8s://", ""),
+        Some(sparkConf.get(KUBERNETES_NAMESPACE)),
+        APISERVER_AUTH_DRIVER_MOUNTED_CONF_PREFIX,
+        sparkConf,
+        Some(new File(Config.KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH)),
+        Some(new File(Config.KUBERNETES_SERVICE_ACCOUNT_CA_CRT_PATH)))
+  }
+
+  val modeHandler: ManagerSpecificHandlers = null
+
+  override def createKubernetesClient(sparkConf: SparkConf): KubernetesClient =
+    modeHandler.createKubernetesClient(sparkConf)
 
   override def canCreate(masterURL: String): Boolean = masterURL.startsWith("k8s")
 
@@ -43,6 +74,14 @@ private[spark] class KubernetesClusterManager extends ExternalClusterManager wit
 
   override def createSchedulerBackend(sc: SparkContext, masterURL: String, scheduler: TaskScheduler)
       : SchedulerBackend = {
+    val modeHandler: ManagerSpecificHandlers = {
+      val deployMode = sc.getConf
+        .get("spark.submit.deployMode")
+      deployMode match {
+        case "client" => new ClientModeHandlers()
+        case _ => new ClusterModeHandlers()
+      }
+    }
     val sparkConf = sc.getConf
     val maybeHadoopConfigMap = sparkConf.getOption(HADOOP_CONFIG_MAP_SPARK_CONF_NAME)
     val maybeHadoopConfDir = sparkConf.getOption(HADOOP_CONF_DIR_LOC)
@@ -151,13 +190,7 @@ private[spark] class KubernetesClusterManager extends ExternalClusterManager wit
         " therefore not attempt to mount hadoop configuration files.")
     }
 
-    val kubernetesClient = SparkKubernetesClientFactory.createKubernetesClient(
-        KUBERNETES_MASTER_INTERNAL_URL,
-        Some(sparkConf.get(KUBERNETES_NAMESPACE)),
-        APISERVER_AUTH_DRIVER_MOUNTED_CONF_PREFIX,
-        sparkConf,
-        Some(new File(Config.KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH)),
-        Some(new File(Config.KUBERNETES_SERVICE_ACCOUNT_CA_CRT_PATH)))
+    val kubernetesClient = modeHandler.createKubernetesClient(sparkConf)
 
     val kubernetesShuffleManager = if (sparkConf.get(
         org.apache.spark.internal.config.SHUFFLE_SERVICE_ENABLED)) {
