@@ -19,10 +19,8 @@ package org.apache.spark.scheduler.cluster.k8s
 import java.io.File
 
 import io.fabric8.kubernetes.client.{Config, KubernetesClient}
-import org.apache.spark.SparkContext
 import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.deploy.k8s.{ConfigurationUtils, HadoopConfBootstrapImpl, HadoopConfSparkUserBootstrapImpl, HadoopUGIUtilImpl, InitContainerResourceStagingServerSecretPluginImpl, KerberosTokenConfBootstrapImpl, SparkKubernetesClientFactory, SparkPodInitContainerBootstrapImpl}
-import io.fabric8.kubernetes.client.Config
+import org.apache.spark.deploy.k8s._
 import org.apache.spark.deploy.k8s.config._
 import org.apache.spark.deploy.k8s.constants._
 import org.apache.spark.deploy.k8s.submit.{MountSecretsBootstrapImpl, MountSmallFilesBootstrapImpl}
