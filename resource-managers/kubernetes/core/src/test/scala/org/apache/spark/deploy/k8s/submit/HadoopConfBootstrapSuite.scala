@@ -23,12 +23,11 @@ import scala.collection.JavaConverters._
 
 import com.google.common.io.Files
 import io.fabric8.kubernetes.api.model._
-import org.mockito.{Mock, MockitoAnnotations}
-import org.mockito.Mockito.when
+import org.mockito.MockitoAnnotations
 import org.scalatest.BeforeAndAfter
 
 import org.apache.spark.SparkFunSuite
-import org.apache.spark.deploy.k8s.{HadoopConfBootstrapImpl, HadoopUGIUtilImpl, PodWithMainContainer}
+import org.apache.spark.deploy.k8s.{HadoopConfBootstrapImpl, PodWithMainContainer}
 import org.apache.spark.deploy.k8s.constants._
 import org.apache.spark.util.Utils
 
@@ -38,19 +37,14 @@ private[spark] class HadoopConfBootstrapSuite extends SparkFunSuite with BeforeA
   private val HADOOP_FILES = Seq(TEMP_HADOOP_FILE)
   private val SPARK_USER_VALUE = "sparkUser"
 
-  @Mock
-  private var hadoopUtil: HadoopUGIUtilImpl = _
-
   before {
     MockitoAnnotations.initMocks(this)
-    when(hadoopUtil.getShortUserName).thenReturn(SPARK_USER_VALUE)
   }
 
   test("Test of bootstrapping hadoop_conf_dir files") {
     val hadoopConfStep = new HadoopConfBootstrapImpl(
       CONFIG_MAP_NAME,
-      HADOOP_FILES,
-      hadoopUtil)
+      HADOOP_FILES)
     val expectedKeyPaths = Seq(
       new KeyToPathBuilder()
         .withKey(TEMP_HADOOP_FILE.toPath.getFileName.toString)

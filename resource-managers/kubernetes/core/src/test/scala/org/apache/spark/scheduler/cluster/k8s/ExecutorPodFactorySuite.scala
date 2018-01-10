@@ -351,8 +351,7 @@ class ExecutorPodFactorySuite extends SparkFunSuite with BeforeAndAfter with Bef
     val hadoopFiles = Seq(hadoopFile)
     val hadoopBootsrap = new HadoopConfBootstrapImpl(
       hadoopConfConfigMapName = configName,
-      hadoopConfigFiles = hadoopFiles,
-      hadoopUGI = hadoopUGI)
+      hadoopConfigFiles = hadoopFiles)
 
     val factory = new ExecutorPodFactoryImpl(
       conf,
@@ -388,8 +387,7 @@ class ExecutorPodFactorySuite extends SparkFunSuite with BeforeAndAfter with Bef
     val hadoopFiles = Seq(hadoopFile)
     val hadoopBootstrap = new HadoopConfBootstrapImpl(
       hadoopConfConfigMapName = configName,
-      hadoopConfigFiles = hadoopFiles,
-      hadoopUGI = hadoopUGI)
+      hadoopConfigFiles = hadoopFiles)
     val hadoopUserBootstrap = new HadoopConfSparkUserBootstrapImpl(hadoopUGI)
 
     val factory = new ExecutorPodFactoryImpl(
@@ -427,8 +425,7 @@ class ExecutorPodFactorySuite extends SparkFunSuite with BeforeAndAfter with Bef
     val hadoopFiles = Seq(hadoopFile)
     val hadoopBootstrap = new HadoopConfBootstrapImpl(
       hadoopConfConfigMapName = configName,
-      hadoopConfigFiles = hadoopFiles,
-      hadoopUGI = hadoopUGI)
+      hadoopConfigFiles = hadoopFiles)
     val secretName = "secret-test"
     val secretItemKey = "item-test"
     val userName = "sparkUser"

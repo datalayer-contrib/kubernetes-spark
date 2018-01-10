@@ -21,7 +21,7 @@ import java.io.File
 import io.fabric8.kubernetes.client.Config
 
 import org.apache.spark.SparkContext
-import org.apache.spark.deploy.k8s.{ConfigurationUtils, HadoopConfBootstrapImpl, HadoopConfSparkUserBootstrapImpl, HadoopUGIUtilImpl, InitContainerResourceStagingServerSecretPluginImpl, KerberosTokenConfBootstrapImpl, SparkKubernetesClientFactory, SparkPodInitContainerBootstrapImpl}
+import org.apache.spark.deploy.k8s.{ConfigurationUtils, HadoopConfBootstrapImpl, HadoopConfSparkUserBootstrapImpl, HadoopConfUtils, HadoopUGIUtilImpl, InitContainerResourceStagingServerSecretPluginImpl, KerberosTokenConfBootstrapImpl, SparkKubernetesClientFactory, SparkPodInitContainerBootstrapImpl}
 import org.apache.spark.deploy.k8s.config._
 import org.apache.spark.deploy.k8s.constants._
 import org.apache.spark.deploy.k8s.submit.{MountSecretsBootstrapImpl, MountSmallFilesBootstrapImpl}
@@ -87,14 +87,12 @@ private[spark] class KubernetesClusterManager extends ExternalClusterManager wit
         sparkConf)
     }
 
-    val hadoopUtil = new HadoopUGIUtilImpl
     val hadoopBootStrap = maybeHadoopConfigMap.map{ hadoopConfigMap =>
       val hadoopConfigurations = maybeHadoopConfDir.map(
-          conf_dir => getHadoopConfFiles(conf_dir)).getOrElse(Array.empty[File])
+          conf_dir => HadoopConfUtils.getHadoopConfFiles(conf_dir)).getOrElse(Seq.empty[File])
       new HadoopConfBootstrapImpl(
         hadoopConfigMap,
-        hadoopConfigurations,
-        hadoopUtil)
+        hadoopConfigurations)
     }
 
     val kerberosBootstrap =
@@ -109,6 +107,7 @@ private[spark] class KubernetesClusterManager extends ExternalClusterManager wit
           Utils.getCurrentUserName() ) }
       }
 
+    val hadoopUtil = new HadoopUGIUtilImpl
     val hadoopUserBootstrap =
       if (hadoopBootStrap.isDefined && kerberosBootstrap.isEmpty) {
         Some(new HadoopConfSparkUserBootstrapImpl(hadoopUtil))
@@ -201,14 +200,5 @@ private[spark] class KubernetesClusterManager extends ExternalClusterManager wit
 
   override def initialize(scheduler: TaskScheduler, backend: SchedulerBackend): Unit = {
     scheduler.asInstanceOf[TaskSchedulerImpl].initialize(backend)
-  }
-
-  private def getHadoopConfFiles(path: String) : Array[File] = {
-    val dir = new File(path)
-    if (dir.isDirectory) {
-      dir.listFiles.flatMap { file => Some(file).filter(_.isFile) }
-    } else {
-      Array.empty[File]
-    }
   }
 }
