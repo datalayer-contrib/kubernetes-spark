@@ -40,8 +40,7 @@ private[spark] trait HadoopConfBootstrap {
 
 private[spark] class HadoopConfBootstrapImpl(
   hadoopConfConfigMapName: String,
-  hadoopConfigFiles: Seq[File],
-  hadoopUGI: HadoopUGIUtil) extends HadoopConfBootstrap with Logging {
+  hadoopConfigFiles: Seq[File]) extends HadoopConfBootstrap with Logging {
 
   override def bootstrapMainContainerAndVolumes(originalPodWithMainContainer: PodWithMainContainer)
     : PodWithMainContainer = {

@@ -19,7 +19,7 @@ package org.apache.spark.deploy.k8s.submit.submitsteps.hadoopsteps
 import java.io.File
 
 import org.apache.spark.SparkConf
-import org.apache.spark.deploy.k8s.{HadoopConfBootstrapImpl, HadoopUGIUtilImpl, OptionRequirements}
+import org.apache.spark.deploy.k8s.{HadoopConfBootstrapImpl, HadoopConfUtils, HadoopUGIUtilImpl, OptionRequirements}
 import org.apache.spark.deploy.k8s.HadoopConfSparkUserBootstrapImpl
 import org.apache.spark.deploy.k8s.config._
 import org.apache.spark.internal.Logging
@@ -43,7 +43,7 @@ private[spark] class HadoopStepsOrchestrator(
      submissionSparkConf.get(KUBERNETES_KERBEROS_DT_SECRET_ITEM_KEY)
    private val maybeRenewerPrincipal =
      submissionSparkConf.get(KUBERNETES_KERBEROS_RENEWER_PRINCIPAL)
-   private val hadoopConfigurationFiles = getHadoopConfFiles(hadoopConfDir)
+   private val hadoopConfigurationFiles = HadoopConfUtils.getHadoopConfFiles(hadoopConfDir)
    private val hadoopUGI = new HadoopUGIUtilImpl
    logInfo(s"Hadoop Conf directory: $hadoopConfDir")
 
@@ -70,8 +70,7 @@ private[spark] class HadoopStepsOrchestrator(
   def getHadoopSteps(): Seq[HadoopConfigurationStep] = {
     val hadoopConfBootstrapImpl = new HadoopConfBootstrapImpl(
       hadoopConfigMapName,
-      hadoopConfigurationFiles,
-      hadoopUGI)
+      hadoopConfigurationFiles)
     val hadoopConfMounterStep = new HadoopConfMounterStep(
       hadoopConfigMapName,
       hadoopConfigurationFiles,
@@ -94,14 +93,5 @@ private[spark] class HadoopStepsOrchestrator(
         Some(new HadoopConfSparkUserStep(new HadoopConfSparkUserBootstrapImpl(hadoopUGI)))
       }
     Seq(hadoopConfMounterStep) ++ maybeKerberosStep.toSeq
-  }
-
-  private def getHadoopConfFiles(path: String) : Seq[File] = {
-     val dir = new File(path)
-     if (dir.isDirectory) {
-        dir.listFiles.flatMap { file => Some(file).filter(_.isFile) }.toSeq
-     } else {
-       Seq.empty[File]
-     }
   }
 }
