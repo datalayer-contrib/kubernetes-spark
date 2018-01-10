@@ -107,7 +107,7 @@ class ResourceStagingServerSuite extends SparkFunSuite with BeforeAndAfter with 
     }
 
     try {
-      Class.forName("org.spark_project.jetty.util.ssl.SslContextFactory")
+      Utils.classForName("org.spark_project.jetty.util.ssl.SslContextFactory")
     }
     catch {
       case e: ClassNotFoundException => testEnableSslOnServer()
