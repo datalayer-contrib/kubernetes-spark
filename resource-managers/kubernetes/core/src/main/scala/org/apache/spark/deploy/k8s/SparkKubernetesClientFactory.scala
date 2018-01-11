@@ -35,13 +35,14 @@ import org.apache.spark.util.ThreadUtils
  */
 private[spark] object SparkKubernetesClientFactory {
 
-  def createKubernetesClient(
+  def createInClusterKubernetesClient(
       master: String,
       namespace: Option[String],
       kubernetesAuthConfPrefix: String,
       sparkConf: SparkConf,
       maybeServiceAccountToken: Option[File],
       maybeServiceAccountCaCert: Option[File]): KubernetesClient = {
+    println("----- createInClusterKubernetesClient")
     val oauthTokenFileConf = s"$kubernetesAuthConfPrefix.$OAUTH_TOKEN_FILE_CONF_SUFFIX"
     val oauthTokenConf = s"$kubernetesAuthConfPrefix.$OAUTH_TOKEN_CONF_SUFFIX"
     val oauthTokenFile = sparkConf.getOption(oauthTokenFileConf)
@@ -87,13 +88,14 @@ private[spark] object SparkKubernetesClientFactory {
     new DefaultKubernetesClient(httpClientWithCustomDispatcher, config)
   }
 
-  def createKubernetesClient2(
+  def createOutClusterKubernetesClient(
                               master: String,
                               namespace: Option[String],
                               kubernetesAuthConfPrefix: String,
                               sparkConf: SparkConf,
                               maybeServiceAccountToken: Option[File],
                               maybeServiceAccountCaCert: Option[File]): KubernetesClient = {
+    println("----- createOutClusterKubernetesClient")
     val oauthTokenFileConf = s"$kubernetesAuthConfPrefix.$OAUTH_TOKEN_FILE_CONF_SUFFIX"
     val oauthTokenConf = s"$kubernetesAuthConfPrefix.$OAUTH_TOKEN_CONF_SUFFIX"
     val oauthTokenFile = sparkConf.getOption(oauthTokenFileConf)

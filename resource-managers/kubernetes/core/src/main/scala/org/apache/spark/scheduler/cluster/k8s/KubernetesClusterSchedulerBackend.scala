@@ -22,13 +22,13 @@ import java.util.concurrent.{ConcurrentHashMap, ExecutorService, ScheduledExecut
 import java.util.concurrent.atomic.{AtomicInteger, AtomicLong, AtomicReference}
 
 import io.fabric8.kubernetes.api.model._
-import io.fabric8.kubernetes.client.{KubernetesClient, KubernetesClientException, Watcher}
+import io.fabric8.kubernetes.client.{Config, KubernetesClient, KubernetesClientException, Watcher}
 import io.fabric8.kubernetes.client.Watcher.Action
+
 import scala.collection.mutable
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
-
-import org.apache.spark.{SparkEnv, SparkException, SparkConf}
+import org.apache.spark.{SparkConf, SparkEnv, SparkException}
 import org.apache.spark.deploy.k8s.config._
 import org.apache.spark.deploy.k8s.constants._
 import org.apache.spark.rpc.{RpcAddress, RpcCallContext, RpcEndpointAddress, RpcEnv}
@@ -38,7 +38,7 @@ import org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend
 import org.apache.spark.util.Utils
 
 trait SchedulerBackendSpecificHandlers {
-  def driverPod(): Pod
+  def getDriverPod(): Pod
   def getKubernetesDriverPodName(conf: SparkConf): String
 }
 
@@ -53,13 +53,19 @@ private[spark] class KubernetesClusterSchedulerBackend(
   extends CoarseGrainedSchedulerBackend(scheduler, rpcEnv)
     with SchedulerBackendSpecificHandlers {
 
-  class ClientModeHandlers extends SchedulerBackendSpecificHandlers {
-    override def driverPod(): Pod = null
+  class OutClusterClientModeHandlers extends SchedulerBackendSpecificHandlers {
+    println("")
+    println("---------------------------------------------------------------- Scheduler OutClusterClientModeHandlers")
+    println("")
+    override def getDriverPod(): Pod = null
     override def getKubernetesDriverPodName(conf: SparkConf): String = null
   }
 
-  class ClusterModeHandlers extends SchedulerBackendSpecificHandlers {
-    override def driverPod(): Pod = {
+  class Handlers extends SchedulerBackendSpecificHandlers {
+    println("")
+    println("---------------------------------------------------------------- Scheduler Handlers")
+    println("")
+    override def getDriverPod(): Pod = {
       try {
         kubernetesClient.pods().inNamespace(kubernetesNamespace).
           withName(kubernetesDriverPodName).get()
@@ -84,12 +90,12 @@ private[spark] class KubernetesClusterSchedulerBackend(
       .get("spark.submit.deployMode")
     deployMode match {
       case "client" => {
-        new java.io.File("/var/run/secrets/kubernetes.io/serviceaccount/token").exists() match {
-          case false => new ClientModeHandlers()
-          case _ =>     new ClusterModeHandlers()
+        new java.io.File(Config.KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH).exists() match {
+          case true  => new Handlers()
+          case false => new OutClusterClientModeHandlers()
         }
       }
-      case _ => new ClusterModeHandlers()
+      case _ => new Handlers()
     }
 
   }
@@ -110,7 +116,7 @@ private[spark] class KubernetesClusterSchedulerBackend(
   private implicit val requestExecutorContext = ExecutionContext.fromExecutorService(
       requestExecutorsService)
 
-  override def driverPod(): Pod = modeHandler.driverPod()
+  override def getDriverPod(): Pod = modeHandler.getDriverPod()
   override def getKubernetesDriverPodName(conf: SparkConf) =  getKubernetesDriverPodName(conf)
 
   override val minRegisteredRatio =
@@ -322,7 +328,7 @@ private[spark] class KubernetesClusterSchedulerBackend(
         applicationId(),
         driverUrl,
         conf.getExecutorEnv,
-        driverPod,
+        getDriverPod(),
         nodeToLocalTaskCount)
     try {
       (executorId, kubernetesClient.pods.create(executorPod))

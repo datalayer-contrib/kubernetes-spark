@@ -99,6 +99,7 @@ private[spark] class Client(
     // submissionSteps contain steps necessary to take, to resolve varying
     // client arguments that are passed in, created by orchestrator
     for (nextStep <- submissionSteps) {
+      println("nextStep: " + nextStep)
       currentDriverSpec = nextStep.configureDriver(currentDriverSpec)
     }
     val resolvedDriverJavaOpts = currentDriverSpec
@@ -110,20 +111,24 @@ private[spark] class Client(
           case (confKey, confValue) => s"-D$confKey=$confValue"
         } ++ driverJavaOptions.map(Utils.splitCommandString).getOrElse(Seq.empty) ++
         maybeSimpleAuthentication
+    println("driver java opts; " + resolvedDriverJavaOpts)
     val driverJavaOptsEnvs: Seq[EnvVar] = resolvedDriverJavaOpts.zipWithIndex.map {
       case (option, index) => new EnvVarBuilder()
           .withName(s"$ENV_JAVA_OPT_PREFIX$index")
           .withValue(option)
           .build()
     }
+    println("driver java opts env; " + driverJavaOptsEnvs)
     val resolvedDriverContainer = new ContainerBuilder(currentDriverSpec.driverContainer)
       .addAllToEnv(driverJavaOptsEnvs.asJava)
       .build()
+    println("dresolvedDriverContainer; " + resolvedDriverContainer)
     val resolvedDriverPod = new PodBuilder(currentDriverSpec.driverPod)
       .editSpec()
         .addToContainers(resolvedDriverContainer)
         .endSpec()
       .build()
+    println("resolvedDriverPod; " + resolvedDriverPod.getMetadata.getName)
     Utils.tryWithResource(
         kubernetesClient
             .pods()
@@ -184,7 +189,7 @@ private[spark] object Client {
         clientArguments.otherPyFiles,
         clientArguments.hadoopConfDir,
         sparkConf)
-    Utils.tryWithResource(SparkKubernetesClientFactory.createKubernetesClient(
+    Utils.tryWithResource(SparkKubernetesClientFactory.createOutClusterKubernetesClient(
         master,
         Some(namespace),
         APISERVER_AUTH_SUBMISSION_CONF_PREFIX,

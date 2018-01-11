@@ -37,9 +37,12 @@ trait ManagerSpecificHandlers {
 private[spark] class KubernetesClusterManager extends ExternalClusterManager
   with ManagerSpecificHandlers with Logging {
 
-  class ClusterModeHandlers extends ManagerSpecificHandlers {
+  class InClusterHandlers extends ManagerSpecificHandlers {
+    println("")
+    println("---------------------------------------------------------------- ClusterManager InClusterHandlers")
+    println("")
     override def createKubernetesClient(sparkConf: SparkConf): KubernetesClient =
-      SparkKubernetesClientFactory.createKubernetesClient(
+      SparkKubernetesClientFactory.createInClusterKubernetesClient(
         KUBERNETES_MASTER_INTERNAL_URL,
         Some(sparkConf.get(KUBERNETES_NAMESPACE)),
         APISERVER_AUTH_DRIVER_MOUNTED_CONF_PREFIX,
@@ -48,9 +51,12 @@ private[spark] class KubernetesClusterManager extends ExternalClusterManager
         Some(new File(Config.KUBERNETES_SERVICE_ACCOUNT_CA_CRT_PATH)))
   }
 
-  class ClientModeHandlers extends ManagerSpecificHandlers {
+  class OutClusterHandlers extends ManagerSpecificHandlers {
+    println("")
+    println("---------------------------------------------------------------- ClusterManager OutClusterHandlers")
+    println("")
     override def createKubernetesClient(sparkConf: SparkConf): KubernetesClient =
-      SparkKubernetesClientFactory.createKubernetesClient2(
+      SparkKubernetesClientFactory.createOutClusterKubernetesClient(
         sparkConf.get("spark.master").replace("k8s://", ""),
         Some(sparkConf.get(KUBERNETES_NAMESPACE)),
         APISERVER_AUTH_DRIVER_MOUNTED_CONF_PREFIX,
@@ -75,11 +81,17 @@ private[spark] class KubernetesClusterManager extends ExternalClusterManager
   override def createSchedulerBackend(sc: SparkContext, masterURL: String, scheduler: TaskScheduler)
       : SchedulerBackend = {
     val modeHandler: ManagerSpecificHandlers = {
+/*
       val deployMode = sc.getConf
         .get("spark.submit.deployMode")
       deployMode match {
         case "client" => new ClientModeHandlers()
         case _ => new ClusterModeHandlers()
+      }
+*/
+      new java.io.File(Config.KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH).exists() match {
+        case true => new InClusterHandlers()
+        case false => new OutClusterHandlers()
       }
     }
     val sparkConf = sc.getConf

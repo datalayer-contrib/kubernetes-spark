@@ -107,7 +107,7 @@ object ResourceStagingServer {
     val useServiceAccountCredentials = sparkConf.get(
         RESOURCE_STAGING_SERVER_USE_SERVICE_ACCOUNT_CREDENTIALS)
     // Namespace doesn't matter because we list resources from various namespaces
-    val kubernetesClient = SparkKubernetesClientFactory.createKubernetesClient(
+    val kubernetesClient = SparkKubernetesClientFactory.createInClusterKubernetesClient(
         apiServerUri,
         None,
         APISERVER_AUTH_RESOURCE_STAGING_SERVER_CONF_PREFIX,
