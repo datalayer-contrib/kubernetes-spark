@@ -28,7 +28,7 @@ import scala.collection.mutable
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 
-import org.apache.spark.{SparkEnv, SparkException}
+import org.apache.spark.{SparkEnv, SparkException, SparkConf}
 import org.apache.spark.deploy.k8s.config._
 import org.apache.spark.deploy.k8s.constants._
 import org.apache.spark.rpc.{RpcAddress, RpcCallContext, RpcEndpointAddress, RpcEnv}
@@ -39,6 +39,7 @@ import org.apache.spark.util.Utils
 
 trait SchedulerBackendSpecificHandlers {
   def driverPod(): Pod
+  def getKubernetesDriverPodName(conf: SparkConf): String
 }
 
 private[spark] class KubernetesClusterSchedulerBackend(
@@ -54,6 +55,7 @@ private[spark] class KubernetesClusterSchedulerBackend(
 
   class ClientModeHandlers extends SchedulerBackendSpecificHandlers {
     override def driverPod(): Pod = null
+    override def getKubernetesDriverPodName(conf: SparkConf): String = null
   }
 
   class ClusterModeHandlers extends SchedulerBackendSpecificHandlers {
@@ -67,6 +69,12 @@ private[spark] class KubernetesClusterSchedulerBackend(
           throw new SparkException(s"Executor cannot find driver pod", throwable)
       }
     }
+    override def getKubernetesDriverPodName(conf: SparkConf): String = {
+      conf
+        .get(KUBERNETES_DRIVER_POD_NAME)
+        .getOrElse(
+          throw new SparkException("Must specify the driver pod name"))
+    }
   }
 
   import KubernetesClusterSchedulerBackend._
@@ -75,7 +83,12 @@ private[spark] class KubernetesClusterSchedulerBackend(
     val deployMode = conf
       .get("spark.submit.deployMode")
     deployMode match {
-      case "client" => new ClientModeHandlers()
+      case "client" => {
+        new java.io.File("/var/run/secrets/kubernetes.io/serviceaccount/token").exists() match {
+          case false => new ClientModeHandlers()
+          case _ =>     new ClusterModeHandlers()
+        }
+      }
       case _ => new ClusterModeHandlers()
     }
 
@@ -93,14 +106,12 @@ private[spark] class KubernetesClusterSchedulerBackend(
 
   private val kubernetesNamespace = conf.get(KUBERNETES_NAMESPACE)
 
-  private val kubernetesDriverPodName = conf
-    .get(KUBERNETES_DRIVER_POD_NAME)
-    .getOrElse(
-      throw new SparkException("Must specify the driver pod name"))
+  private val kubernetesDriverPodName = modeHandler.getKubernetesDriverPodName(conf)
   private implicit val requestExecutorContext = ExecutionContext.fromExecutorService(
       requestExecutorsService)
 
   override def driverPod(): Pod = modeHandler.driverPod()
+  override def getKubernetesDriverPodName(conf: SparkConf) =  getKubernetesDriverPodName(conf)
 
   override val minRegisteredRatio =
     if (conf.getOption("spark.scheduler.minRegisteredResourcesRatio").isEmpty) {
