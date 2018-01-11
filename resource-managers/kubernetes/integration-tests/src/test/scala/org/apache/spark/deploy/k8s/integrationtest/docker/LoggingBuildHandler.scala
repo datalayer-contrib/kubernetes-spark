@@ -19,15 +19,14 @@ package org.apache.spark.deploy.k8s.integrationtest.docker
 import com.spotify.docker.client.ProgressHandler
 import com.spotify.docker.client.exceptions.DockerException
 import com.spotify.docker.client.messages.ProgressMessage
-import org.apache.log4j.{Logger, LogManager}
+import org.apache.spark.deploy.k8s.integrationtest.Logging
 
-class LoggingBuildHandler() extends ProgressHandler {
-  private val log: Logger = LogManager.getLogger(this.getClass)
+class LoggingBuildHandler() extends ProgressHandler with Logging {
   @throws[DockerException]
   def progress(message: ProgressMessage) {
     if (message.error != null) throw new DockerException(message.toString)
     else if (message.status == null) {
-      log.info(s"build: $message")
+      logInfo(s"build: $message")
     }
   }
 }
