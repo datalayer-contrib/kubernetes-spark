@@ -184,7 +184,7 @@ private[spark] object Client {
         clientArguments.otherPyFiles,
         clientArguments.hadoopConfDir,
         sparkConf)
-    Utils.tryWithResource(SparkKubernetesClientFactory.createInClusterKubernetesClient(
+    Utils.tryWithResource(SparkKubernetesClientFactory.createKubernetesClient(
         master,
         Some(namespace),
         APISERVER_AUTH_SUBMISSION_CONF_PREFIX,

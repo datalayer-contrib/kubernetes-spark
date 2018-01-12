@@ -54,17 +54,11 @@ private[spark] class KubernetesClusterSchedulerBackend(
     with SchedulerBackendSpecificHandlers {
 
   class OutClusterClientModeHandlers extends SchedulerBackendSpecificHandlers {
-    println("")
-    println("---------------------------------------------------------------- Scheduler OutClusterClientModeHandlers")
-    println("")
     override def getDriverPod(): Pod = null
     override def getKubernetesDriverPodName(conf: SparkConf): String = null
   }
 
-  class Handlers extends SchedulerBackendSpecificHandlers {
-    println("")
-    println("---------------------------------------------------------------- Scheduler Handlers")
-    println("")
+  class NonOutClusterClientModeHandlers extends SchedulerBackendSpecificHandlers {
     override def getDriverPod(): Pod = {
       try {
         kubernetesClient.pods().inNamespace(kubernetesNamespace).
@@ -91,11 +85,12 @@ private[spark] class KubernetesClusterSchedulerBackend(
     deployMode match {
       case "client" => {
         new java.io.File(Config.KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH).exists() match {
-          case true  => new Handlers()
+          case true  => new NonOutClusterClientModeHandlers()
           case false => new OutClusterClientModeHandlers()
+//          case false => new Handlers()
         }
       }
-      case _ => new Handlers()
+      case _ => new NonOutClusterClientModeHandlers()
     }
 
   }

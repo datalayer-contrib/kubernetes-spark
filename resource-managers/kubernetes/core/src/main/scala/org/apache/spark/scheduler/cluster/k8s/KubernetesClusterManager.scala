@@ -38,11 +38,8 @@ private[spark] class KubernetesClusterManager extends ExternalClusterManager
   with ManagerSpecificHandlers with Logging {
 
   class InClusterHandlers extends ManagerSpecificHandlers {
-    println("")
-    println("---------------------------------------------------------------- ClusterManager InClusterHandlers")
-    println("")
     override def createKubernetesClient(sparkConf: SparkConf): KubernetesClient =
-      SparkKubernetesClientFactory.createInClusterKubernetesClient(
+      SparkKubernetesClientFactory.createKubernetesClient(
         KUBERNETES_MASTER_INTERNAL_URL,
         Some(sparkConf.get(KUBERNETES_NAMESPACE)),
         APISERVER_AUTH_DRIVER_MOUNTED_CONF_PREFIX,
@@ -52,11 +49,8 @@ private[spark] class KubernetesClusterManager extends ExternalClusterManager
   }
 
   class OutClusterHandlers extends ManagerSpecificHandlers {
-    println("")
-    println("---------------------------------------------------------------- ClusterManager OutClusterHandlers")
-    println("")
     override def createKubernetesClient(sparkConf: SparkConf): KubernetesClient =
-      SparkKubernetesClientFactory.createOutClusterKubernetesClient(
+      SparkKubernetesClientFactory.createKubernetesClient(
         sparkConf.get("spark.master").replace("k8s://", ""),
         Some(sparkConf.get(KUBERNETES_NAMESPACE)),
         APISERVER_AUTH_DRIVER_MOUNTED_CONF_PREFIX,

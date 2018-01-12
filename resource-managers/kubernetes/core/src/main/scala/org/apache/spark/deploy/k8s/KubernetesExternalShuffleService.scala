@@ -140,7 +140,7 @@ private[spark] class KubernetesExternalShuffleService(
   private var shuffleBlockHandlers: mutable.Buffer[KubernetesShuffleBlockHandler] = _
   protected override def newShuffleBlockHandler(
       tConf: TransportConf): ExternalShuffleBlockHandler = {
-    val kubernetesClient = SparkKubernetesClientFactory.createInClusterKubernetesClient(
+    val kubernetesClient = SparkKubernetesClientFactory.createKubernetesClient(
         conf.get(KUBERNETES_SHUFFLE_APISERVER_URI),
         None,
         APISERVER_AUTH_SHUFFLE_SERVICE_CONF_PREFIX,
