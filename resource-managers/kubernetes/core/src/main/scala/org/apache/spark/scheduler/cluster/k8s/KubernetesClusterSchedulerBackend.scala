@@ -22,13 +22,13 @@ import java.util.concurrent.{ConcurrentHashMap, ExecutorService, ScheduledExecut
 import java.util.concurrent.atomic.{AtomicInteger, AtomicLong, AtomicReference}
 
 import io.fabric8.kubernetes.api.model._
-import io.fabric8.kubernetes.client.{KubernetesClient, KubernetesClientException, Watcher}
+import io.fabric8.kubernetes.client.{Config, KubernetesClient, KubernetesClientException, Watcher}
 import io.fabric8.kubernetes.client.Watcher.Action
+
 import scala.collection.mutable
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
-
-import org.apache.spark.{SparkEnv, SparkException}
+import org.apache.spark.{SparkConf, SparkEnv, SparkException}
 import org.apache.spark.deploy.k8s.config._
 import org.apache.spark.deploy.k8s.constants._
 import org.apache.spark.rpc.{RpcAddress, RpcCallContext, RpcEndpointAddress, RpcEnv}
@@ -38,7 +38,8 @@ import org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend
 import org.apache.spark.util.Utils
 
 trait SchedulerBackendSpecificHandlers {
-  def driverPod(): Pod
+  def getDriverPod(): Pod
+  def getKubernetesDriverPodName(conf: SparkConf): String
 }
 
 private[spark] class KubernetesClusterSchedulerBackend(
@@ -52,12 +53,13 @@ private[spark] class KubernetesClusterSchedulerBackend(
   extends CoarseGrainedSchedulerBackend(scheduler, rpcEnv)
     with SchedulerBackendSpecificHandlers {
 
-  class ClientModeHandlers extends SchedulerBackendSpecificHandlers {
-    override def driverPod(): Pod = null
+  class OutClusterClientModeHandlers extends SchedulerBackendSpecificHandlers {
+    override def getDriverPod(): Pod = null
+    override def getKubernetesDriverPodName(conf: SparkConf): String = null
   }
 
-  class ClusterModeHandlers extends SchedulerBackendSpecificHandlers {
-    override def driverPod(): Pod = {
+  class NonOutClusterClientModeHandlers extends SchedulerBackendSpecificHandlers {
+    override def getDriverPod(): Pod = {
       try {
         kubernetesClient.pods().inNamespace(kubernetesNamespace).
           withName(kubernetesDriverPodName).get()
@@ -67,6 +69,12 @@ private[spark] class KubernetesClusterSchedulerBackend(
           throw new SparkException(s"Executor cannot find driver pod", throwable)
       }
     }
+    override def getKubernetesDriverPodName(conf: SparkConf): String = {
+      conf
+        .get(KUBERNETES_DRIVER_POD_NAME)
+        .getOrElse(
+          throw new SparkException("Must specify the driver pod name"))
+    }
   }
 
   import KubernetesClusterSchedulerBackend._
@@ -75,8 +83,13 @@ private[spark] class KubernetesClusterSchedulerBackend(
     val deployMode = conf
       .get("spark.submit.deployMode")
     deployMode match {
-      case "client" => new ClientModeHandlers()
-      case _ => new ClusterModeHandlers()
+      case "client" => {
+        new java.io.File(Config.KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH).exists() match {
+          case true  => new NonOutClusterClientModeHandlers()
+          case false => new OutClusterClientModeHandlers()
+        }
+      }
+      case _ => new NonOutClusterClientModeHandlers()
     }
 
   }
@@ -93,14 +106,12 @@ private[spark] class KubernetesClusterSchedulerBackend(
 
   private val kubernetesNamespace = conf.get(KUBERNETES_NAMESPACE)
 
-  private val kubernetesDriverPodName = conf
-    .get(KUBERNETES_DRIVER_POD_NAME)
-    .getOrElse(
-      throw new SparkException("Must specify the driver pod name"))
+  private val kubernetesDriverPodName = modeHandler.getKubernetesDriverPodName(conf)
   private implicit val requestExecutorContext = ExecutionContext.fromExecutorService(
       requestExecutorsService)
 
-  override def driverPod(): Pod = modeHandler.driverPod()
+  override def getDriverPod(): Pod = modeHandler.getDriverPod()
+  override def getKubernetesDriverPodName(conf: SparkConf) =  getKubernetesDriverPodName(conf)
 
   override val minRegisteredRatio =
     if (conf.getOption("spark.scheduler.minRegisteredResourcesRatio").isEmpty) {
@@ -311,7 +322,7 @@ private[spark] class KubernetesClusterSchedulerBackend(
         applicationId(),
         driverUrl,
         conf.getExecutorEnv,
-        driverPod,
+        getDriverPod(),
         nodeToLocalTaskCount)
     try {
       (executorId, kubernetesClient.pods.create(executorPod))

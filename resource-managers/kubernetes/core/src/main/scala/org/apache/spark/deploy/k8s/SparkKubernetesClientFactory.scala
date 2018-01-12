@@ -36,6 +36,19 @@ import org.apache.spark.util.ThreadUtils
 private[spark] object SparkKubernetesClientFactory {
 
   def createKubernetesClient(
+       master: String,
+       namespace: Option[String],
+       kubernetesAuthConfPrefix: String,
+       sparkConf: SparkConf,
+       maybeServiceAccountToken: Option[File],
+       maybeServiceAccountCaCert: Option[File]): KubernetesClient = {
+    new java.io.File(Config.KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH).exists() match {
+      case true  => createInClusterKubernetesClient(master, namespace, kubernetesAuthConfPrefix, sparkConf, maybeServiceAccountToken, maybeServiceAccountCaCert)
+      case false => createOutClusterKubernetesClient(master, namespace, kubernetesAuthConfPrefix, sparkConf, maybeServiceAccountToken, maybeServiceAccountCaCert)
+    }
+  }
+
+  private def createInClusterKubernetesClient(
       master: String,
       namespace: Option[String],
       kubernetesAuthConfPrefix: String,
@@ -87,7 +100,7 @@ private[spark] object SparkKubernetesClientFactory {
     new DefaultKubernetesClient(httpClientWithCustomDispatcher, config)
   }
 
-  def createKubernetesClient2(
+  def createOutClusterKubernetesClient(
                               master: String,
                               namespace: Option[String],
                               kubernetesAuthConfPrefix: String,
