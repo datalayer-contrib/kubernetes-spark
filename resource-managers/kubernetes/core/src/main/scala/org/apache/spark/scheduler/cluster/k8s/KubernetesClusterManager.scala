@@ -81,14 +81,6 @@ private[spark] class KubernetesClusterManager extends ExternalClusterManager
   override def createSchedulerBackend(sc: SparkContext, masterURL: String, scheduler: TaskScheduler)
       : SchedulerBackend = {
     val modeHandler: ManagerSpecificHandlers = {
-/*
-      val deployMode = sc.getConf
-        .get("spark.submit.deployMode")
-      deployMode match {
-        case "client" => new ClientModeHandlers()
-        case _ => new ClusterModeHandlers()
-      }
-*/
       new java.io.File(Config.KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH).exists() match {
         case true => new InClusterHandlers()
         case false => new OutClusterHandlers()
