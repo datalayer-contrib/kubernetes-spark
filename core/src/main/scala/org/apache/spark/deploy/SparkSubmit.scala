@@ -344,8 +344,6 @@ object SparkSubmit extends CommandLineUtils {
 
     // The following modes are not supported or applicable
     (clusterManager, deployMode) match {
-      case (KUBERNETES, CLIENT) =>
-        printErrorAndExit("Client mode is currently not supported for Kubernetes.")
       case (STANDALONE, CLUSTER) if args.isPython =>
         printErrorAndExit("Cluster deploy mode is currently not supported for python " +
           "applications on standalone clusters.")
