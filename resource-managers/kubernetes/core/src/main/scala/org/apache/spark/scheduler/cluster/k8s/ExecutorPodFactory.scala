@@ -118,7 +118,11 @@ private[spark] class ExecutorPodFactoryImpl(
       nodeToLocalTaskCount: Map[String, Int]): Pod = {
 
     val prefix = (executorPodNamePrefix == "spark") match {
-      case true => applicationId // We are in client mode.
+      case true => {
+        val appName = sparkConf.getOption("spark.app.name").getOrElse("spark")
+        val launchTime = System.currentTimeMillis()
+        s"$appName-$launchTime".toLowerCase.replaceAll("\\.", "-")
+      } // We are in client mode.
       case false => executorPodNamePrefix //  We are in cluster mode.
     }
     val name = s"$prefix-exec-$executorId"
