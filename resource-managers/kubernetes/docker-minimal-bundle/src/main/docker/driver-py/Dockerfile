@@ -24,18 +24,51 @@ FROM spark-base
 ADD examples /opt/spark/examples
 ADD python /opt/spark/python
 
-RUN apk add --no-cache python && \
-    python -m ensurepip && \
+RUN apk add --no-cache python3 && \
+    python3 -m ensurepip && \
     rm -r /usr/lib/python*/ensurepip && \
-    pip install --upgrade pip setuptools && \
+    pip3 install --upgrade pip setuptools && \
     rm -r /root/.cache
-# UNCOMMENT THE FOLLOWING TO START PIP INSTALLING PYTHON PACKAGES
-# RUN apk add --update alpine-sdk python-dev
-# RUN pip install numpy
 
-ENV PYTHON_VERSION 2.7.13
-ENV PYSPARK_PYTHON python
-ENV PYSPARK_DRIVER_PYTHON python
+RUN apk add --update alpine-sdk python3-dev
+
+RUN pip3 install dev
+RUN pip3 install numpy
+RUN pip3 install py4j
+RUN apk add --no-cache freetype freetype-dev libjpeg-turbo-dev libpng-dev
+RUN pip3 install matplotlib
+RUN pip3 install bokeh
+RUN pip3 install boto3
+# RUN pip3 install ipython
+RUN pip3 install pandas
+RUN pip3 install pandasql
+
+RUN apk add --no-cache libstdc++ lapack-dev && \
+    apk add --no-cache \
+        --virtual=.build-dependencies \
+        g++ gfortran musl-dev \
+        python3-dev && \
+    ln -s locale.h /usr/include/xlocale.h && \
+    pip3 install numpy && \
+    pip3 install pandas && \
+    pip3 install scipy && \
+    pip3 install scikit-learn
+
+# RUN apk add --no-cache gcc gfortran build-base wget freetype-dev libpng-dev openblas-dev
+# RUN ln -s /usr/include/locale.h /usr/include/xlocale.h
+RUN pip3 install scikit-learn
+# ENV PATH /opt/rh/python34/root/usr/bin:$PATH
+# RUN echo "/opt/rh/python34/root/usr/lib64" >> /etc/ld.so.conf
+# RUN ldconfig
+
+RUN find /usr/lib/python3.*/ -name 'tests' -exec rm -r '{}' + && \
+    rm /usr/include/xlocale.h && \
+    rm -r /root/.cache && \
+    apk del .build-dependencies
+
+ENV PYTHON_VERSION 3.6.1
+ENV PYSPARK_PYTHON /usr/bin/python3
+ENV PYSPARK_DRIVER_PYTHON /usr/bin/python3
 ENV PYTHONPATH ${SPARK_HOME}/python/:${SPARK_HOME}/python/lib/py4j-0.10.4-src.zip:${PYTHONPATH}
 
 CMD SPARK_CLASSPATH="${SPARK_HOME}/jars/*" && \
@@ -44,6 +77,7 @@ CMD SPARK_CLASSPATH="${SPARK_HOME}/jars/*" && \
     if ! [ -z ${SPARK_MOUNTED_CLASSPATH+x} ]; then SPARK_CLASSPATH="$SPARK_MOUNTED_CLASSPATH:$SPARK_CLASSPATH"; fi && \
     if ! [ -z ${SPARK_SUBMIT_EXTRA_CLASSPATH+x} ]; then SPARK_CLASSPATH="$SPARK_SUBMIT_EXTRA_CLASSPATH:$SPARK_CLASSPATH"; fi && \
     if ! [ -z ${SPARK_EXTRA_CLASSPATH+x} ]; then SPARK_CLASSPATH="$SPARK_EXTRA_CLASSPATH:$SPARK_CLASSPATH"; fi && \
+    if ! [ -z ${HADOOP_CONF_DIR+x} ]; then SPARK_CLASSPATH="$HADOOP_CONF_DIR:$SPARK_CLASSPATH"; fi && \
     if ! [ -z ${SPARK_MOUNTED_FILES_DIR+x} ]; then cp -R "$SPARK_MOUNTED_FILES_DIR/." .; fi && \
     if ! [ -z ${SPARK_MOUNTED_FILES_FROM_SECRET_DIR+x} ]; then cp -R "$SPARK_MOUNTED_FILES_FROM_SECRET_DIR/." .; fi && \
     ${JAVA_HOME}/bin/java "${SPARK_DRIVER_JAVA_OPTS[@]}" -cp "$SPARK_CLASSPATH" -Xms$SPARK_DRIVER_MEMORY -Xmx$SPARK_DRIVER_MEMORY -Dspark.driver.bindAddress=$SPARK_DRIVER_BIND_ADDRESS $SPARK_DRIVER_CLASS $PYSPARK_PRIMARY $PYSPARK_FILES $SPARK_DRIVER_ARGS
