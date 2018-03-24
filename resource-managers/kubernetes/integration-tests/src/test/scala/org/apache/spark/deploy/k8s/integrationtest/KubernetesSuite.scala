@@ -366,7 +366,8 @@ private[spark] class KubernetesSuite extends SparkFunSuite with BeforeAndAfter {
       mainAppResource = appResource,
       mainClass = mainClass,
       driverArgs = appArgs,
-      otherPyFiles = otherPyFiles)
+      otherPyFiles = otherPyFiles,
+      hadoopConfDir = None)
     Client.run(sparkConf, clientArguments)
     val driverPod = kubernetesTestComponents.kubernetesClient
       .pods()
