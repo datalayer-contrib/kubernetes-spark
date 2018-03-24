@@ -26,7 +26,7 @@ declare -A path=( [spark-driver]=dockerfiles/driver/Dockerfile \
                   [spark-driver-r]=dockerfiles/driver-r/Dockerfile \
                   [spark-executor-r]=dockerfiles/executor-r/Dockerfile \
                   [spark-init]=dockerfiles/init-container/Dockerfile \
-                  [spark-shuffle]=dockerfiles/shuffle-service/Dockerfile \
+                  [spark-shuffle-service]=dockerfiles/shuffle-service/Dockerfile \
                   [spark-resource-staging-server]=dockerfiles/resource-staging-server/Dockerfile )
 
 function build {
