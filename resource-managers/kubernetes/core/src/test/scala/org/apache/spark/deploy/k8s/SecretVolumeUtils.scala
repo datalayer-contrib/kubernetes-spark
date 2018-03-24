@@ -14,24 +14,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.spark.deploy.k8s.submit.submitsteps
+package org.apache.spark.deploy.k8s
 
-import org.apache.spark.deploy.k8s.submit.MountSecretsBootstrap
+import scala.collection.JavaConverters._
 
-/**
- * A driver configuration step for mounting user-specified secrets onto user-specified paths.
- *
- * @param bootstrap a utility actually handling mounting of the secrets.
- */
-private[spark] class MountSecretsStep(
-    bootstrap: MountSecretsBootstrap) extends DriverConfigurationStep {
+import io.fabric8.kubernetes.api.model.{Container, Pod}
 
-  override def configureDriver(driverSpec: KubernetesDriverSpec): KubernetesDriverSpec = {
-    val pod = bootstrap.addSecretVolumes(driverSpec.driverPod)
-    val container = bootstrap.mountSecrets(driverSpec.driverContainer)
-    driverSpec.copy(
-      driverPod = pod,
-      driverContainer = container
-    )
+private[spark] object SecretVolumeUtils {
+
+  def podHasVolume(pod: Pod, volumeName: String): Boolean = {
+    pod.getSpec.getVolumes.asScala.exists(volume => volume.getName == volumeName)
+  }
+
+  def containerHasVolume(
+      container: Container,
+      volumeName: String,
+      mountPath: String): Boolean = {
+    container.getVolumeMounts.asScala.exists(volumeMount =>
+      volumeMount.getName == volumeName && volumeMount.getMountPath == mountPath)
   }
 }

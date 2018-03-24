@@ -14,23 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.spark.deploy.k8s.submit
+package org.apache.spark.deploy.k8s
 
-import scala.collection.JavaConverters._
+import java.io.File
 
-import io.fabric8.kubernetes.api.model.{Container, Pod}
+private[spark] object HadoopConfUtils {
 
-private[spark] object SecretVolumeUtils {
-
-  def podHasVolume(driverPod: Pod, volumeName: String): Boolean = {
-    driverPod.getSpec.getVolumes.asScala.exists(volume => volume.getName == volumeName)
-  }
-
-  def containerHasVolume(
-      driverContainer: Container,
-      volumeName: String,
-      mountPath: String): Boolean = {
-    driverContainer.getVolumeMounts.asScala.exists(volumeMount =>
-      volumeMount.getName == volumeName && volumeMount.getMountPath == mountPath)
+  def getHadoopConfFiles(path: String) : Seq[File] = {
+    val dir = new File(path)
+    if (dir.isDirectory) {
+      dir.listFiles.flatMap { file => Some(file).filter(_.isFile) }.toSeq
+    } else {
+      Seq.empty[File]
+    }
   }
 }
