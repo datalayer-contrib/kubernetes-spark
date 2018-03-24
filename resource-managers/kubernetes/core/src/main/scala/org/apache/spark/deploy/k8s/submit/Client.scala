@@ -35,7 +35,8 @@ private[spark] case class ClientArguments(
      mainAppResource: MainAppResource,
      otherPyFiles: Seq[String],
      mainClass: String,
-     driverArgs: Array[String])
+     driverArgs: Array[String],
+     hadoopConfDir: Option[String])
 
 private[spark] object ClientArguments {
   def fromCommandLineArgs(args: Array[String]): ClientArguments = {
@@ -67,7 +68,8 @@ private[spark] object ClientArguments {
         mainAppResource.get,
         otherPyFiles,
         mainClass.get,
-        driverArgs.toArray)
+        driverArgs.toArray,
+        sys.env.get(ENV_HADOOP_CONF_DIR))
   }
 }
 
@@ -81,6 +83,11 @@ private[spark] class Client(
 
   private val driverJavaOptions = submissionSparkConf.get(
     org.apache.spark.internal.config.DRIVER_JAVA_OPTIONS)
+  private val isKerberosEnabled = submissionSparkConf.get(KUBERNETES_KERBEROS_SUPPORT)
+  // HADOOP_SECURITY_AUTHENTICATION is defined as simple for the driver and executors as
+  // they need only the delegation token to access secure HDFS, no need to sign in to Kerberos
+  private val maybeSimpleAuthentication =
+    if (isKerberosEnabled) Some(s"-D$HADOOP_SECURITY_AUTHENTICATION=simple") else None
 
    /**
     * Run command that initalizes a DriverSpec that will be updated after each
@@ -101,7 +108,8 @@ private[spark] class Client(
         .getAll
         .map {
           case (confKey, confValue) => s"-D$confKey=$confValue"
-        } ++ driverJavaOptions.map(Utils.splitCommandString).getOrElse(Seq.empty)
+        } ++ driverJavaOptions.map(Utils.splitCommandString).getOrElse(Seq.empty) ++
+        maybeSimpleAuthentication
     val driverJavaOptsEnvs: Seq[EnvVar] = resolvedDriverJavaOpts.zipWithIndex.map {
       case (option, index) => new EnvVarBuilder()
           .withName(s"$ENV_JAVA_OPT_PREFIX$index")
@@ -174,6 +182,7 @@ private[spark] object Client {
         clientArguments.mainClass,
         clientArguments.driverArgs,
         clientArguments.otherPyFiles,
+        clientArguments.hadoopConfDir,
         sparkConf)
     Utils.tryWithResource(SparkKubernetesClientFactory.createKubernetesClient(
         master,
