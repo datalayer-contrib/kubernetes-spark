@@ -14,24 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.spark.deploy.k8s.submit.submitsteps
+package org.apache.spark.deploy.k8s.submit.submitsteps.hadoopsteps
 
-import org.apache.spark.deploy.k8s.submit.MountSecretsBootstrap
+ /**
+  * Represents a step in preparing the driver with Hadoop Configuration logic.
+  */
+private[spark] trait HadoopConfigurationStep {
 
-/**
- * A driver configuration step for mounting user-specified secrets onto user-specified paths.
- *
- * @param bootstrap a utility actually handling mounting of the secrets.
- */
-private[spark] class MountSecretsStep(
-    bootstrap: MountSecretsBootstrap) extends DriverConfigurationStep {
-
-  override def configureDriver(driverSpec: KubernetesDriverSpec): KubernetesDriverSpec = {
-    val pod = bootstrap.addSecretVolumes(driverSpec.driverPod)
-    val container = bootstrap.mountSecrets(driverSpec.driverContainer)
-    driverSpec.copy(
-      driverPod = pod,
-      driverContainer = container
-    )
-  }
+  def configureContainers(hadoopConfigSpec: HadoopConfigSpec): HadoopConfigSpec
 }

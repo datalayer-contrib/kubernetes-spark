@@ -21,15 +21,15 @@ import java.io.File
 import io.fabric8.kubernetes.client.Config
 
 import org.apache.spark.SparkContext
-import org.apache.spark.deploy.k8s.{ConfigurationUtils, InitContainerResourceStagingServerSecretPluginImpl, SparkKubernetesClientFactory, SparkPodInitContainerBootstrapImpl}
+import org.apache.spark.deploy.k8s.{ConfigurationUtils, HadoopConfBootstrapImpl, HadoopConfSparkUserBootstrapImpl, HadoopConfUtils, HadoopUGIUtilImpl, InitContainerResourceStagingServerSecretPluginImpl, KerberosTokenConfBootstrapImpl, SparkKubernetesClientFactory, SparkPodInitContainerBootstrapImpl}
 import org.apache.spark.deploy.k8s.config._
 import org.apache.spark.deploy.k8s.constants._
-import org.apache.spark.deploy.k8s.submit.{MountSecretsBootstrapImpl, MountSmallFilesBootstrapImpl}
+import org.apache.spark.deploy.k8s.submit.{MountSecretsBootstrap, MountSmallFilesBootstrapImpl}
 import org.apache.spark.internal.Logging
 import org.apache.spark.network.netty.SparkTransportConf
 import org.apache.spark.network.shuffle.kubernetes.KubernetesExternalShuffleClientImpl
 import org.apache.spark.scheduler.{ExternalClusterManager, SchedulerBackend, TaskScheduler, TaskSchedulerImpl}
-import org.apache.spark.util.ThreadUtils
+import org.apache.spark.util.{ThreadUtils, Utils}
 
 private[spark] class KubernetesClusterManager extends ExternalClusterManager with Logging {
 
@@ -44,6 +44,10 @@ private[spark] class KubernetesClusterManager extends ExternalClusterManager wit
   override def createSchedulerBackend(sc: SparkContext, masterURL: String, scheduler: TaskScheduler)
       : SchedulerBackend = {
     val sparkConf = sc.getConf
+    val maybeHadoopConfigMap = sparkConf.getOption(HADOOP_CONFIG_MAP_SPARK_CONF_NAME)
+    val maybeHadoopConfDir = sparkConf.getOption(HADOOP_CONF_DIR_LOC)
+    val maybeDTSecretName = sparkConf.getOption(KERBEROS_KEYTAB_SECRET_NAME)
+    val maybeDTDataItem = sparkConf.getOption(KERBEROS_KEYTAB_SECRET_KEY)
     val maybeInitContainerConfigMap = sparkConf.get(EXECUTOR_INIT_CONTAINER_CONFIG_MAP)
     val maybeInitContainerConfigMapKey = sparkConf.get(EXECUTOR_INIT_CONTAINER_CONFIG_MAP_KEY)
     val maybeSubmittedFilesSecret = sparkConf.get(EXECUTOR_SUBMITTED_SMALL_FILES_SECRET)
@@ -83,6 +87,34 @@ private[spark] class KubernetesClusterManager extends ExternalClusterManager wit
         sparkConf)
     }
 
+    val hadoopBootStrap = maybeHadoopConfigMap.map{ hadoopConfigMap =>
+      val hadoopConfigurations = maybeHadoopConfDir.map(
+          conf_dir => HadoopConfUtils.getHadoopConfFiles(conf_dir)).getOrElse(Seq.empty[File])
+      new HadoopConfBootstrapImpl(
+        hadoopConfigMap,
+        hadoopConfigurations)
+    }
+
+    val kerberosBootstrap =
+      maybeHadoopConfigMap.flatMap { _ =>
+        for {
+        secretName <- maybeDTSecretName
+        secretItemKey <- maybeDTDataItem
+      } yield {
+        new KerberosTokenConfBootstrapImpl(
+          secretName,
+          secretItemKey,
+          Utils.getCurrentUserName() ) }
+      }
+
+    val hadoopUtil = new HadoopUGIUtilImpl
+    val hadoopUserBootstrap =
+      if (hadoopBootStrap.isDefined && kerberosBootstrap.isEmpty) {
+        Some(new HadoopConfSparkUserBootstrapImpl(hadoopUtil))
+      } else {
+        None
+      }
+
     val mountSmallFilesBootstrap = for {
       secretName <- maybeSubmittedFilesSecret
       secretMountPath <- maybeSubmittedFilesSecretMountPath
@@ -93,12 +125,12 @@ private[spark] class KubernetesClusterManager extends ExternalClusterManager wit
     val executorSecretNamesToMountPaths = ConfigurationUtils.parsePrefixedKeyValuePairs(sparkConf,
       KUBERNETES_EXECUTOR_SECRETS_PREFIX, "executor secrets")
     val mountSecretBootstrap = if (executorSecretNamesToMountPaths.nonEmpty) {
-      Some(new MountSecretsBootstrapImpl(executorSecretNamesToMountPaths))
+      Some(new MountSecretsBootstrap(executorSecretNamesToMountPaths))
     } else {
       None
     }
     val executorInitContainerMountSecretsBootstrap = if (executorSecretNamesToMountPaths.nonEmpty) {
-      Some(new MountSecretsBootstrapImpl(executorSecretNamesToMountPaths))
+      Some(new MountSecretsBootstrap(executorSecretNamesToMountPaths))
     } else {
       None
     }
@@ -107,9 +139,15 @@ private[spark] class KubernetesClusterManager extends ExternalClusterManager wit
       logWarning("The executor's init-container config map was not specified. Executors will" +
         " therefore not attempt to fetch remote or submitted dependencies.")
     }
+
     if (maybeInitContainerConfigMapKey.isEmpty) {
       logWarning("The executor's init-container config map key was not specified. Executors will" +
         " therefore not attempt to fetch remote or submitted dependencies.")
+    }
+
+    if (maybeHadoopConfigMap.isEmpty) {
+      logWarning("The executor's hadoop config map key was not specified. Executors will" +
+        " therefore not attempt to mount hadoop configuration files.")
     }
 
     val kubernetesClient = SparkKubernetesClientFactory.createKubernetesClient(
@@ -142,7 +180,10 @@ private[spark] class KubernetesClusterManager extends ExternalClusterManager wit
         executorInitContainerBootstrap,
         executorInitContainerMountSecretsBootstrap,
         executorInitContainerSecretVolumePlugin,
-        executorLocalDirVolumeProvider)
+        executorLocalDirVolumeProvider,
+        hadoopBootStrap,
+        kerberosBootstrap,
+        hadoopUserBootstrap)
     val allocatorExecutor = ThreadUtils
         .newDaemonSingleThreadScheduledExecutor("kubernetes-pod-allocator")
     val requestExecutorsService = ThreadUtils.newDaemonCachedThreadPool(
