@@ -19,15 +19,15 @@
 # This script builds and pushes docker images when run from a release of Spark
 # with Kubernetes support.
 
-declare -A path=( [spark-k8s-driver]=dockerfiles/driver/Dockerfile \
-                  [spark-k8s-executor]=dockerfiles/executor/Dockerfile \
-                  [spark-k8s-driver-py]=dockerfiles/driver-py/Dockerfile \
-                  [spark-k8s-executor-py]=dockerfiles/executor-py/Dockerfile \
-                  [spark-k8s-driver-r]=dockerfiles/driver-r/Dockerfile \
-                  [spark-k8s-executor-r]=dockerfiles/executor-r/Dockerfile \
-                  [spark-k8s-init]=dockerfiles/init-container/Dockerfile \
-                  [spark-k8s-shuffle-service]=dockerfiles/shuffle-service/Dockerfile \
-                  [spark-k8s-resource-staging-server]=dockerfiles/resource-staging-server/Dockerfile )
+declare -A path=( [spark-driver]=dockerfiles/driver/Dockerfile \
+                  [spark-executor]=dockerfiles/executor/Dockerfile \
+                  [spark-driver-py]=dockerfiles/driver-py/Dockerfile \
+                  [spark-executor-py]=dockerfiles/executor-py/Dockerfile \
+                  [spark-driver-r]=dockerfiles/driver-r/Dockerfile \
+                  [spark-executor-r]=dockerfiles/executor-r/Dockerfile \
+                  [spark-init]=dockerfiles/init-container/Dockerfile \
+                  [spark-shuffle-service]=dockerfiles/shuffle-service/Dockerfile \
+                  [spark-resource-staging-server]=dockerfiles/resource-staging-server/Dockerfile )
 
 function build {
   docker build -t spark-base -f dockerfiles/spark-base/Dockerfile .
