@@ -125,7 +125,7 @@ private[spark] class ExecutorPodFactoryImpl(
       } // We are in client mode.
       case false => executorPodNamePrefix //  We are in cluster mode.
     }
-    val name = s"$prefix-exec-$executorId"
+    val name = s"$prefix-exec-$executorId".replaceAll(" ", "-")
 
     // hostname must be no longer than 63 characters, so take the last 63 characters of the pod
     // name as the hostname.  This preserves uniqueness since the end of name contains
