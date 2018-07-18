@@ -18,10 +18,9 @@ package org.apache.spark.scheduler.cluster.k8s
 
 import java.io.File
 
-import io.fabric8.kubernetes.client.Config
-
-import org.apache.spark.SparkContext
-import org.apache.spark.deploy.k8s.{ConfigurationUtils, HadoopConfBootstrapImpl, HadoopConfSparkUserBootstrapImpl, HadoopConfUtils, HadoopUGIUtilImpl, InitContainerResourceStagingServerSecretPluginImpl, KerberosTokenConfBootstrapImpl, SparkKubernetesClientFactory, SparkPodInitContainerBootstrapImpl}
+import io.fabric8.kubernetes.client.{Config, KubernetesClient}
+import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.deploy.k8s._
 import org.apache.spark.deploy.k8s.config._
 import org.apache.spark.deploy.k8s.constants._
 import org.apache.spark.deploy.k8s.submit.{MountSecretsBootstrap, MountSmallFilesBootstrapImpl}
@@ -31,7 +30,39 @@ import org.apache.spark.network.shuffle.kubernetes.KubernetesExternalShuffleClie
 import org.apache.spark.scheduler.{ExternalClusterManager, SchedulerBackend, TaskScheduler, TaskSchedulerImpl}
 import org.apache.spark.util.{ThreadUtils, Utils}
 
-private[spark] class KubernetesClusterManager extends ExternalClusterManager with Logging {
+trait ManagerSpecificHandlers {
+  def createKubernetesClient(sparkConf: SparkConf): KubernetesClient
+}
+
+private[spark] class KubernetesClusterManager extends ExternalClusterManager
+  with ManagerSpecificHandlers with Logging {
+
+  class InClusterHandlers extends ManagerSpecificHandlers {
+    override def createKubernetesClient(sparkConf: SparkConf): KubernetesClient =
+      SparkKubernetesClientFactory.createKubernetesClient(
+        KUBERNETES_MASTER_INTERNAL_URL,
+        Some(sparkConf.get(KUBERNETES_NAMESPACE)),
+        APISERVER_AUTH_DRIVER_MOUNTED_CONF_PREFIX,
+        sparkConf,
+        Some(new File(Config.KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH)),
+        Some(new File(Config.KUBERNETES_SERVICE_ACCOUNT_CA_CRT_PATH)))
+  }
+
+  class OutClusterHandlers extends ManagerSpecificHandlers {
+    override def createKubernetesClient(sparkConf: SparkConf): KubernetesClient =
+      SparkKubernetesClientFactory.createKubernetesClient(
+        sparkConf.get("spark.master").replace("k8s://", ""),
+        Some(sparkConf.get(KUBERNETES_NAMESPACE)),
+        APISERVER_AUTH_DRIVER_MOUNTED_CONF_PREFIX,
+        sparkConf,
+        Some(new File(Config.KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH)),
+        Some(new File(Config.KUBERNETES_SERVICE_ACCOUNT_CA_CRT_PATH)))
+  }
+
+  val modeHandler: ManagerSpecificHandlers = null
+
+  override def createKubernetesClient(sparkConf: SparkConf): KubernetesClient =
+    modeHandler.createKubernetesClient(sparkConf)
 
   override def canCreate(masterURL: String): Boolean = masterURL.startsWith("k8s")
 
@@ -43,6 +74,12 @@ private[spark] class KubernetesClusterManager extends ExternalClusterManager wit
 
   override def createSchedulerBackend(sc: SparkContext, masterURL: String, scheduler: TaskScheduler)
       : SchedulerBackend = {
+    val modeHandler: ManagerSpecificHandlers = {
+      new java.io.File(Config.KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH).exists() match {
+        case true => new InClusterHandlers()
+        case false => new OutClusterHandlers()
+      }
+    }
     val sparkConf = sc.getConf
     val maybeHadoopConfigMap = sparkConf.getOption(HADOOP_CONFIG_MAP_SPARK_CONF_NAME)
     val maybeHadoopConfDir = sparkConf.getOption(HADOOP_CONF_DIR_LOC)
@@ -150,13 +187,7 @@ private[spark] class KubernetesClusterManager extends ExternalClusterManager wit
         " therefore not attempt to mount hadoop configuration files.")
     }
 
-    val kubernetesClient = SparkKubernetesClientFactory.createKubernetesClient(
-        KUBERNETES_MASTER_INTERNAL_URL,
-        Some(sparkConf.get(KUBERNETES_NAMESPACE)),
-        APISERVER_AUTH_DRIVER_MOUNTED_CONF_PREFIX,
-        sparkConf,
-        Some(new File(Config.KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH)),
-        Some(new File(Config.KUBERNETES_SERVICE_ACCOUNT_CA_CRT_PATH)))
+    val kubernetesClient = modeHandler.createKubernetesClient(sparkConf)
 
     val kubernetesShuffleManager = if (sparkConf.get(
         org.apache.spark.internal.config.SHUFFLE_SERVICE_ENABLED)) {

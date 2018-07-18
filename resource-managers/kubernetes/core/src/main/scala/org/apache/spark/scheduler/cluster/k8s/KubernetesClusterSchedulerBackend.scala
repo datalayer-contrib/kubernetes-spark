@@ -18,18 +18,17 @@ package org.apache.spark.scheduler.cluster.k8s
 
 import java.io.Closeable
 import java.net.InetAddress
-import java.util.Collections
-import java.util.concurrent.{ConcurrentHashMap, ExecutorService, ScheduledExecutorService, ThreadPoolExecutor, TimeUnit}
+import java.util.concurrent.{ConcurrentHashMap, ExecutorService, ScheduledExecutorService, TimeUnit}
 import java.util.concurrent.atomic.{AtomicInteger, AtomicLong, AtomicReference}
 
 import io.fabric8.kubernetes.api.model._
-import io.fabric8.kubernetes.client.{KubernetesClient, KubernetesClientException, Watcher}
+import io.fabric8.kubernetes.client.{Config, KubernetesClient, KubernetesClientException, Watcher}
 import io.fabric8.kubernetes.client.Watcher.Action
+
 import scala.collection.mutable
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
-
-import org.apache.spark.{SparkEnv, SparkException}
+import org.apache.spark.{SparkConf, SparkEnv, SparkException}
 import org.apache.spark.deploy.k8s.config._
 import org.apache.spark.deploy.k8s.constants._
 import org.apache.spark.rpc.{RpcAddress, RpcCallContext, RpcEndpointAddress, RpcEnv}
@@ -37,6 +36,11 @@ import org.apache.spark.scheduler.{ExecutorExited, SlaveLost, TaskSchedulerImpl}
 import org.apache.spark.scheduler.cluster.CoarseGrainedClusterMessages.{RetrieveSparkAppConfig, SparkAppConfig}
 import org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend
 import org.apache.spark.util.Utils
+
+trait SchedulerBackendSpecificHandlers {
+  def getDriverPod(): Pod
+  def getKubernetesDriverPodName(conf: SparkConf): String
+}
 
 private[spark] class KubernetesClusterSchedulerBackend(
     scheduler: TaskSchedulerImpl,
@@ -46,9 +50,49 @@ private[spark] class KubernetesClusterSchedulerBackend(
     kubernetesClient: KubernetesClient,
     allocatorExecutor: ScheduledExecutorService,
     requestExecutorsService: ExecutorService)
-  extends CoarseGrainedSchedulerBackend(scheduler, rpcEnv) {
+  extends CoarseGrainedSchedulerBackend(scheduler, rpcEnv)
+    with SchedulerBackendSpecificHandlers {
+
+  class OutClusterClientModeHandlers extends SchedulerBackendSpecificHandlers {
+    override def getDriverPod(): Pod = null
+    override def getKubernetesDriverPodName(conf: SparkConf): String = null
+  }
+
+  class NonOutClusterClientModeHandlers extends SchedulerBackendSpecificHandlers {
+    override def getDriverPod(): Pod = {
+      try {
+        kubernetesClient.pods().inNamespace(kubernetesNamespace).
+          withName(kubernetesDriverPodName).get()
+      } catch {
+        case throwable: Throwable =>
+          logError(s"Executor cannot find driver pod.", throwable)
+          throw new SparkException(s"Executor cannot find driver pod", throwable)
+      }
+    }
+    override def getKubernetesDriverPodName(conf: SparkConf): String = {
+      conf
+        .get(KUBERNETES_DRIVER_POD_NAME)
+        .getOrElse(
+          throw new SparkException("Must specify the driver pod name"))
+    }
+  }
 
   import KubernetesClusterSchedulerBackend._
+
+  val modeHandler: SchedulerBackendSpecificHandlers = {
+    val deployMode = conf
+      .get("spark.submit.deployMode")
+    deployMode match {
+      case "client" => {
+        new java.io.File(Config.KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH).exists() match {
+          case true  => new NonOutClusterClientModeHandlers()
+          case false => new OutClusterClientModeHandlers()
+        }
+      }
+      case _ => new NonOutClusterClientModeHandlers()
+    }
+
+  }
 
   private val EXECUTOR_ID_COUNTER = new AtomicLong(0L)
   private val RUNNING_EXECUTOR_PODS_LOCK = new Object
@@ -62,21 +106,12 @@ private[spark] class KubernetesClusterSchedulerBackend(
 
   private val kubernetesNamespace = conf.get(KUBERNETES_NAMESPACE)
 
-  private val kubernetesDriverPodName = conf
-    .get(KUBERNETES_DRIVER_POD_NAME)
-    .getOrElse(
-      throw new SparkException("Must specify the driver pod name"))
+  private val kubernetesDriverPodName = modeHandler.getKubernetesDriverPodName(conf)
   private implicit val requestExecutorContext = ExecutionContext.fromExecutorService(
       requestExecutorsService)
 
-  private val driverPod = try {
-    kubernetesClient.pods().inNamespace(kubernetesNamespace).
-      withName(kubernetesDriverPodName).get()
-  } catch {
-    case throwable: Throwable =>
-      logError(s"Executor cannot find driver pod.", throwable)
-      throw new SparkException(s"Executor cannot find driver pod", throwable)
-  }
+  override def getDriverPod(): Pod = modeHandler.getDriverPod()
+  override def getKubernetesDriverPodName(conf: SparkConf) =  getKubernetesDriverPodName(conf)
 
   override val minRegisteredRatio =
     if (conf.getOption("spark.scheduler.minRegisteredResourcesRatio").isEmpty) {
@@ -287,7 +322,7 @@ private[spark] class KubernetesClusterSchedulerBackend(
         applicationId(),
         driverUrl,
         conf.getExecutorEnv,
-        driverPod,
+        getDriverPod(),
         nodeToLocalTaskCount)
     try {
       (executorId, kubernetesClient.pods.create(executorPod))

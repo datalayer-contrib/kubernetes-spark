@@ -18,10 +18,10 @@
 package org.apache.spark.repl
 
 import java.io.File
+import java.net.{URL, URLClassLoader}
 import java.util.Locale
 
 import scala.tools.nsc.GenericRunnerSettings
-
 import org.apache.spark._
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.SparkSession
@@ -29,6 +29,17 @@ import org.apache.spark.sql.internal.StaticSQLConf.CATALOG_IMPLEMENTATION
 import org.apache.spark.util.Utils
 
 object Main extends Logging {
+
+  def addPath(s: String) {
+    val f = new File(s)
+    val u = f.toURI.toURL
+    val urlClassLoader = ClassLoader.getSystemClassLoader.asInstanceOf[URLClassLoader]
+    val urlClass = classOf[URLClassLoader]
+    val method = urlClass.getDeclaredMethod("addURL", (classOf[URL]))
+    method.setAccessible(true)
+    method.invoke(urlClassLoader, u)
+  }
+  addPath("/sdk/conf/hadoop")
 
   initializeLogIfNecessary(true)
   Signaling.cancelOnInterrupt()

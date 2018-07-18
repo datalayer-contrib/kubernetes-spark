@@ -116,7 +116,16 @@ private[spark] class ExecutorPodFactoryImpl(
       executorEnvs: Seq[(String, String)],
       driverPod: Pod,
       nodeToLocalTaskCount: Map[String, Int]): Pod = {
-    val name = s"$executorPodNamePrefix-exec-$executorId"
+
+    val prefix = (executorPodNamePrefix == "spark") match {
+      case true => {
+        val appName = sparkConf.getOption("spark.app.name").getOrElse("spark")
+        val launchTime = System.currentTimeMillis()
+        s"$appName-$launchTime".toLowerCase.replaceAll("\\.", "-")
+      } // We are in client mode.
+      case false => executorPodNamePrefix //  We are in cluster mode.
+    }
+    val name = s"$prefix-exec-$executorId".replaceAll(" ", "-")
 
     // hostname must be no longer than 63 characters, so take the last 63 characters of the pod
     // name as the hostname.  This preserves uniqueness since the end of name contains
@@ -199,12 +208,26 @@ private[spark] class ExecutorPodFactoryImpl(
       .addAllToVolumeMounts(shuffleVolumesWithMounts.map(_._2).asJava)
       .build()
 
-    val executorPod = new PodBuilder()
-      .withNewMetadata()
-        .withName(name)
-        .withLabels(resolvedExecutorLabels.asJava)
-        .withAnnotations(executorAnnotations.asJava)
-        .withOwnerReferences()
+    val executorPod = (driverPod == null) match {
+      case true => new PodBuilder()
+        .withNewMetadata()
+          .withName(name)
+          .withLabels(resolvedExecutorLabels.asJava)
+          .withAnnotations(executorAnnotations.asJava)
+        .endMetadata()
+        .withNewSpec()
+          .withHostname(hostname)
+          .withRestartPolicy("Never")
+          .withNodeSelector(nodeSelector.asJava)
+          .addAllToVolumes(shuffleVolumesWithMounts.map(_._1).asJava)
+          .endSpec()
+        .build()
+      case false => new PodBuilder()
+        .withNewMetadata()
+          .withName(name)
+          .withLabels(resolvedExecutorLabels.asJava)
+          .withAnnotations(executorAnnotations.asJava)
+          .withOwnerReferences()
           .addNewOwnerReference()
             .withController(true)
             .withApiVersion(driverPod.getApiVersion)
@@ -212,14 +235,16 @@ private[spark] class ExecutorPodFactoryImpl(
             .withName(driverPod.getMetadata.getName)
             .withUid(driverPod.getMetadata.getUid)
             .endOwnerReference()
-        .endMetadata()
-      .withNewSpec()
+          .endMetadata()
+        .withNewSpec()
         .withHostname(hostname)
         .withRestartPolicy("Never")
         .withNodeSelector(nodeSelector.asJava)
         .addAllToVolumes(shuffleVolumesWithMounts.map(_._1).asJava)
         .endSpec()
       .build()
+    }
+
 
     val containerWithExecutorLimitCores = executorLimitCores.map {
       limitCores =>

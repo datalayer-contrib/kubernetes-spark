@@ -25,41 +25,41 @@ import org.apache.spark.deploy.k8s.config._
 import org.apache.spark.deploy.k8s.constants._
 
 /**
- * Represents the initial setup required for the driver.
- */
+  * Represents the initial setup required for the driver.
+  */
 private[spark] class BaseDriverConfigurationStep(
-    kubernetesAppId: String,
-    kubernetesResourceNamePrefix: String,
-    driverLabels: Map[String, String],
-    dockerImagePullPolicy: String,
-    appName: String,
-    mainClass: String,
-    appArgs: Array[String],
-    submissionSparkConf: SparkConf) extends DriverConfigurationStep {
+                                                  kubernetesAppId: String,
+                                                  kubernetesResourceNamePrefix: String,
+                                                  driverLabels: Map[String, String],
+                                                  dockerImagePullPolicy: String,
+                                                  appName: String,
+                                                  mainClass: String,
+                                                  appArgs: Array[String],
+                                                  submissionSparkConf: SparkConf) extends DriverConfigurationStep {
 
   private val kubernetesDriverPodName = submissionSparkConf.get(KUBERNETES_DRIVER_POD_NAME)
-      .getOrElse(s"$kubernetesResourceNamePrefix-driver")
+    .getOrElse(s"$kubernetesResourceNamePrefix-driver")
   private val driverExtraClasspath = submissionSparkConf.get(
-      org.apache.spark.internal.config.DRIVER_CLASS_PATH)
+    org.apache.spark.internal.config.DRIVER_CLASS_PATH)
   // CPU settings
   private val driverCpuCores = submissionSparkConf.getOption("spark.driver.cores").getOrElse("1")
   private val driverLimitCores = submissionSparkConf.get(KUBERNETES_DRIVER_LIMIT_CORES)
 
   // Memory settings
   private val driverMemoryMiB = submissionSparkConf.get(
-      org.apache.spark.internal.config.DRIVER_MEMORY)
+    org.apache.spark.internal.config.DRIVER_MEMORY)
   private val driverMemoryString = submissionSparkConf.get(
-      org.apache.spark.internal.config.DRIVER_MEMORY.key,
-      org.apache.spark.internal.config.DRIVER_MEMORY.defaultValueString)
+    org.apache.spark.internal.config.DRIVER_MEMORY.key,
+    org.apache.spark.internal.config.DRIVER_MEMORY.defaultValueString)
   private val memoryOverheadMiB = submissionSparkConf
-      .get(KUBERNETES_DRIVER_MEMORY_OVERHEAD)
-      .getOrElse(math.max((MEMORY_OVERHEAD_FACTOR * driverMemoryMiB).toInt,
-          MEMORY_OVERHEAD_MIN_MIB))
+    .get(KUBERNETES_DRIVER_MEMORY_OVERHEAD)
+    .getOrElse(math.max((MEMORY_OVERHEAD_FACTOR * driverMemoryMiB).toInt,
+      MEMORY_OVERHEAD_MIN_MIB))
   private val driverContainerMemoryWithOverheadMiB = driverMemoryMiB + memoryOverheadMiB
   private val driverDockerImage = submissionSparkConf.get(DRIVER_DOCKER_IMAGE)
 
   override def configureDriver(
-      driverSpec: KubernetesDriverSpec): KubernetesDriverSpec = {
+                                driverSpec: KubernetesDriverSpec): KubernetesDriverSpec = {
     val driverExtraClasspathEnv = driverExtraClasspath.map { classPath =>
       new EnvVarBuilder()
         .withName(ENV_SUBMIT_EXTRA_CLASSPATH)
@@ -67,13 +67,13 @@ private[spark] class BaseDriverConfigurationStep(
         .build()
     }
     val driverCustomAnnotations = ConfigurationUtils
-        .parsePrefixedKeyValuePairs(
-            submissionSparkConf,
-            KUBERNETES_DRIVER_ANNOTATION_PREFIX,
-            "annotation")
+      .parsePrefixedKeyValuePairs(
+        submissionSparkConf,
+        KUBERNETES_DRIVER_ANNOTATION_PREFIX,
+        "annotation")
     require(!driverCustomAnnotations.contains(SPARK_APP_NAME_ANNOTATION),
-        s"Annotation with key $SPARK_APP_NAME_ANNOTATION is not allowed as it is reserved for" +
-            s" Spark bookkeeping operations.")
+      s"Annotation with key $SPARK_APP_NAME_ANNOTATION is not allowed as it is reserved for" +
+        s" Spark bookkeeping operations.")
 
     val driverCustomEnvs = submissionSparkConf.getAllWithPrefix(KUBERNETES_DRIVER_ENV_KEY).toSeq
       .map(env => new EnvVarBuilder()
@@ -103,40 +103,40 @@ private[spark] class BaseDriverConfigurationStep(
       .addAllToEnv(driverCustomEnvs.asJava)
       .addToEnv(driverExtraClasspathEnv.toSeq: _*)
       .addNewEnv()
-        .withName(ENV_DRIVER_MEMORY)
-        .withValue(driverMemoryString)
-        .endEnv()
+      .withName(ENV_DRIVER_MEMORY)
+      .withValue(driverMemoryString)
+      .endEnv()
       .addNewEnv()
-        .withName(ENV_DRIVER_MAIN_CLASS)
-        .withValue(mainClass)
-        .endEnv()
+      .withName(ENV_DRIVER_MAIN_CLASS)
+      .withValue(mainClass)
+      .endEnv()
       .addNewEnv()
-        .withName(ENV_DRIVER_ARGS)
-        .withValue(appArgs.mkString(" "))
-        .endEnv()
+      .withName(ENV_DRIVER_ARGS)
+      .withValue(appArgs.mkString(" "))
+      .endEnv()
       .addNewEnv()
-        .withName(ENV_DRIVER_BIND_ADDRESS)
-        .withValueFrom(new EnvVarSourceBuilder()
-          .withNewFieldRef("v1", "status.podIP")
-          .build())
-        .endEnv()
+      .withName(ENV_DRIVER_BIND_ADDRESS)
+      .withValueFrom(new EnvVarSourceBuilder()
+        .withNewFieldRef("v1", "status.podIP")
+        .build())
+      .endEnv()
       .withNewResources()
-        .addToRequests("cpu", driverCpuQuantity)
-        .addToRequests("memory", driverMemoryQuantity)
-        .addToLimits("memory", driverMemoryLimitQuantity)
-        .addToLimits(maybeCpuLimitQuantity.toMap.asJava)
-        .endResources()
+      .addToRequests("cpu", driverCpuQuantity)
+      .addToRequests("memory", driverMemoryQuantity)
+      .addToLimits("memory", driverMemoryLimitQuantity)
+      .addToLimits(maybeCpuLimitQuantity.toMap.asJava)
+      .endResources()
       .build()
     val baseDriverPod = new PodBuilder(driverSpec.driverPod)
       .editOrNewMetadata()
-        .withName(kubernetesDriverPodName)
-        .addToLabels(driverLabels.asJava)
-        .addToAnnotations(allDriverAnnotations.asJava)
+      .withName(kubernetesDriverPodName)
+      .addToLabels(driverLabels.asJava)
+      .addToAnnotations(allDriverAnnotations.asJava)
       .endMetadata()
       .withNewSpec()
-        .withRestartPolicy("Never")
-        .withNodeSelector(nodeSelector.asJava)
-        .endSpec()
+      .withRestartPolicy("Never")
+      .withNodeSelector(nodeSelector.asJava)
+      .endSpec()
       .build()
     val resolvedSparkConf = driverSpec.driverSparkConf.clone()
       .setIfMissing(KUBERNETES_DRIVER_POD_NAME, kubernetesDriverPodName)
