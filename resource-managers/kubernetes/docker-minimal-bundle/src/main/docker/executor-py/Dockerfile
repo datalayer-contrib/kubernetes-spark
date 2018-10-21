@@ -32,7 +32,7 @@ RUN apk add --no-cache python3 && \
 
 RUN apk add --update alpine-sdk python3-dev
 
-RUN pip3 install dev
+# RUN pip3 install dev
 RUN pip3 install numpy
 RUN pip3 install py4j
 RUN apk add --no-cache freetype freetype-dev libjpeg-turbo-dev libpng-dev
